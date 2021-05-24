@@ -55,7 +55,7 @@ impl Default for TerminalConfig {
         };
         Self {
             workdir,
-            command: vec!["ls".to_string(), "-la".to_string()],
+            command: vec!["watch".to_string(), "ls".to_string(), "-la".to_string()],
         }
     }
 }
