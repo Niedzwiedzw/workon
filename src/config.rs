@@ -1,7 +1,7 @@
 use crate::error::{WorkonError, WorkonResult};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
 pub const CONFIG_DEFAULT_FILENAME: &str = "workon.yaml";
@@ -63,9 +63,51 @@ impl Default for TerminalConfig {
 impl Validate for TerminalConfig {
     fn validate(&self) -> WorkonResult<&Self> {
         assert_or!(self.workdir.exists(), "project directory no longer exists");
-        assert_or!(!self.command.is_empty(), "startup command needs to be specified");
+        assert_or!(
+            !self.command.is_empty(),
+            "startup command needs to be specified"
+        );
         for segment in &self.command {
-            assert_or!(!segment.is_empty(), "malformed command, a segment cannot be empty");
+            assert_or!(
+                !segment.is_empty(),
+                "malformed command, a segment cannot be empty"
+            );
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProgramConfig {
+    pub workdir: PathBuf,
+    pub command: Vec<String>,
+}
+
+impl Default for ProgramConfig {
+    fn default() -> Self {
+        let workdir = match directories::UserDirs::new() {
+            Some(dirs) => dirs.home_dir().to_path_buf(),
+            None => ["/"].iter().collect(),
+        };
+        Self {
+            workdir,
+            command: vec!["firefox".to_string(), "--new-tab".to_string(), "https://github.com/Niedzwiedzw/workon".to_string()],
+        }
+    }
+}
+
+impl Validate for ProgramConfig {
+    fn validate(&self) -> WorkonResult<&Self> {
+        assert_or!(self.workdir.exists(), "project directory no longer exists");
+        assert_or!(
+            !self.command.is_empty(),
+            "startup command needs to be specified"
+        );
+        for segment in &self.command {
+            assert_or!(
+                !segment.is_empty(),
+                "malformed command, a segment cannot be empty"
+            );
         }
         Ok(self)
     }
@@ -75,22 +117,39 @@ impl Validate for TerminalConfig {
 pub struct ProjectConfig {
     pub project_name: String,
     pub terminals: Vec<TerminalConfig>,
+    pub programs: Vec<ProgramConfig>,
 }
 
 impl Default for ProjectConfig {
     fn default() -> Self {
         Self {
             terminals: vec![Default::default()],
-            project_name: "example project".to_string()
+            programs: vec![Default::default()],
+            project_name: "example-project".to_string(),
         }
     }
 }
 
 impl Validate for ProjectConfig {
     fn validate(&self) -> WorkonResult<&Self> {
-        assert_or!(!self.project_name.is_empty(), "project name cannot be empty");
-        let terminals = self.terminals.iter().map(|t| t.validate()).collect::<WorkonResult<Vec<_>>>()?;
-        assert_or!(!terminals.is_empty(), "project must contain at least one application");
+        assert_or!(
+            !self.project_name.is_empty(),
+            "project name cannot be empty"
+        );
+        let terminals = self
+            .terminals
+            .iter()
+            .map(|t| t.validate())
+            .collect::<WorkonResult<Vec<_>>>()?;
+        let programs = self
+            .programs
+            .iter()
+            .map(|p| p.validate())
+            .collect::<WorkonResult<Vec<_>>>()?;
+        assert_or!(
+            !terminals.is_empty() || !programs.is_empty(),
+            "project must contain at least one application"
+        );
         Ok(self)
     }
 }
@@ -130,7 +189,6 @@ impl Validate for WorkonConfig {
         Ok(self)
     }
 }
-
 
 #[cfg(test)]
 mod test_default_config {
